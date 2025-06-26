@@ -1,0 +1,477 @@
+{
+  "name": "Article Generator By Date",
+  "nodes": [
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1692,
+        515
+      ],
+      "id": "2cc2a9fd-b66d-449a-a89d-6a03c91a2134",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "2o3PIGomm60adTh2",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"Title\": \"string\",\n  \"Description\": \"string\",\n  \"Keywords\": [\"string\"],\n  \"Headings\": [\"string\"],\n  \"Article\": \"string\"\n}",
+        "autoFix": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -1696,
+        320
+      ],
+      "id": "60139bb7-170c-428e-b2f7-4ba2ff91c521",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "folderId": "1sIJR2jTbn77MH5cgK6dwSHOMlOmyDDT0",
+        "title": "={{ $json.output.Title }}"
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        -1320,
+        100
+      ],
+      "id": "3890d920-d18e-402c-bc2e-701381d87acb",
+      "name": "Google Docs",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "Vasb24DvkrjG2hRV",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Assuming docId is already retrieved via Google Docs: Create Document\nconst docId = $input.first().json.id;\n\nconst title = $('Read Topic Row').first().json.Title || 'Untitled';\nconst description = $('Read Topic Row').first().json.Description || '';\nconst article = $('Basic LLM Chain').first().json.output.Article || '';\n\nconst requests = [];\n\n// Start from index 1 (Docs API starts at 1)\nlet cursor = 1;\n\n// Insert Title\nrequests.push({\n  insertText: {\n    location: { index: cursor },\n    text: title + '\\n'\n  }\n});\nrequests.push({\n  updateParagraphStyle: {\n    range: {\n      startIndex: cursor,\n      endIndex: cursor + title.length + 1,\n    },\n    paragraphStyle: { namedStyleType: \"HEADING_1\" },\n    fields: \"namedStyleType\"\n  }\n});\ncursor += title.length + 1;\n\n// Insert Description\nrequests.push({\n  insertText: {\n    location: { index: cursor },\n    text: description + '\\n'\n  }\n});\nrequests.push({\n  updateParagraphStyle: {\n    range: {\n      startIndex: cursor,\n      endIndex: cursor + description.length + 1,\n    },\n    paragraphStyle: { namedStyleType: \"HEADING_2\" },\n    fields: \"namedStyleType\"\n  }\n});\ncursor += description.length + 1;\n\n// Insert Article Heading\nconst articleHeading = 'Article';\nrequests.push({\n  insertText: {\n    location: { index: cursor },\n    text: articleHeading + '\\n'\n  }\n});\nrequests.push({\n  updateParagraphStyle: {\n    range: {\n      startIndex: cursor,\n      endIndex: cursor + articleHeading.length + 1\n    },\n    paragraphStyle: { namedStyleType: \"HEADING_2\" },\n    fields: \"namedStyleType\"\n  }\n});\ncursor += articleHeading.length + 1;\n\n// Insert Article Content\nrequests.push({\n  insertText: {\n    location: { index: cursor },\n    text: article\n  }\n});\n\nreturn [{ \n  json:{\n  payload:{\n    requests\n  }\n}\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1100,
+        100
+      ],
+      "id": "c156499b-bdeb-42b6-ae14-67ebe228dec2",
+      "name": "Code",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://docs.googleapis.com/v1/documents/{{ $('Google Docs').item.json.id }}:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "requests",
+              "value": "={{ $json.payload.requests }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -880,
+        100
+      ],
+      "id": "eab4a9fe-0351-4bb2-b463-7be7fc21daaa",
+      "name": "HTTP Request",
+      "credentials": {
+        "googleOAuth2Api": {
+          "id": "8lX48yYBWFeZXrpJ",
+          "name": "Google account"
+        },
+        "googleDriveOAuth2Api": {
+          "id": "mIejbMxPxFJ6kRXE",
+          "name": "Google Drive account 2"
+        },
+        "googleDocsOAuth2Api": {
+          "id": "Vasb24DvkrjG2hRV",
+          "name": "Google Docs account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=I will give you an article topic. Based on that, generate a JSON response with following keys:\n\nTitle: SEO-friendly, catchy, and relevant to the topic.\n\nDescription: 1-2 sentence meta description for SEO.\n\nKeywords: List of SEO and long-tail keywords.\n\nHeadings: List of headings only (without any tags).\n\nArticle: Full detailed article (min 800-1000 words) using those headings with informative content.\n\nMy topic: {{ $json.topic }}",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        -1780,
+        100
+      ],
+      "id": "35ea9f39-6da4-4f7a-be40-671a98e11498",
+      "name": "Basic LLM Chain",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.seconds }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -2000,
+        100
+      ],
+      "id": "46885775-a910-4197-b090-d931e1c84ee7",
+      "name": "Wait",
+      "webhookId": "15fa4537-a28d-4f2b-bd89-1aad1dbed1a0",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1_5Jtw2oPtEeY_6eaGXREnX3J5piYGoDge3HJtVet9pg",
+          "mode": "list",
+          "cachedResultName": "Articles Date and Time Schedule",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_5Jtw2oPtEeY_6eaGXREnX3J5piYGoDge3HJtVet9pg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_5Jtw2oPtEeY_6eaGXREnX3J5piYGoDge3HJtVet9pg/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        -2440,
+        100
+      ],
+      "id": "00f2e807-4b84-4528-8fb3-48e99608b460",
+      "name": "Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Y33keCgJJ6ypLQps",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "auto-schedule",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -2660,
+        0
+      ],
+      "id": "2244ec2f-1599-4311-8b9e-8150591c0bb4",
+      "name": "Webhook",
+      "webhookId": "cbc1c058-2c71-49d5-b121-c3fe1c285978"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://localhost:5678/webhook-test/auto-schedule",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -660,
+        100
+      ],
+      "id": "f4561a51-d011-439c-80fe-175a80333419",
+      "name": "HTTP Request1",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -2660,
+        200
+      ],
+      "id": "5ecacab0-9e01-445b-9e9b-a334f6f32ecc",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1_5Jtw2oPtEeY_6eaGXREnX3J5piYGoDge3HJtVet9pg",
+          "mode": "list",
+          "cachedResultName": "Articles Date and Time Schedule",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_5Jtw2oPtEeY_6eaGXREnX3J5piYGoDge3HJtVet9pg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_5Jtw2oPtEeY_6eaGXREnX3J5piYGoDge3HJtVet9pg/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Topic": "={{ $json.body.title }}",
+            "Time": "={{ $json.body.datetime[1] }}",
+            "Date": "={{ $json.body.datetime[0] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Time",
+              "displayName": "Time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Topic",
+              "displayName": "Topic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        -2440,
+        400
+      ],
+      "id": "af5a4a9d-6929-419b-87f9-8e2c91a2abdd",
+      "name": "Google Sheets3",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Y33keCgJJ6ypLQps",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "auto-schedule",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -2660,
+        400
+      ],
+      "id": "a186f51d-c5ec-480b-94ce-ba8734202925",
+      "name": "Webhook1",
+      "webhookId": "cbc1c058-2c71-49d5-b121-c3fe1c285978"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.all()\nlet nearestDiff = Infinity;\nlet nearestRow = null;\nconst now = new Date();\n\nfor(const row of item){\n  \nconst rowTime = new Date(`${row.json.Date} ${row.json.Time}`)\n  const diff = Math.floor((rowTime - now) / 1000);\n\n    if(diff > 0 && diff < nearestDiff){\n      nearestDiff = diff\n      nearestRow = row\n    }\n}\n\nreturn [{\n  json:{\n    seconds: Math.floor(nearestDiff),\n    topic: nearestRow.json.Topic,\n  }\n}]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2220,
+        100
+      ],
+      "id": "8f0aabc7-f4c6-4c00-9567-5a10b3cf753d",
+      "name": "Code2",
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Structured Output Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Docs": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Google Docs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a9a415a0-2ae1-4ec7-80b9-17cdff523d54",
+  "meta": {
+    "instanceId": "ae0bee47d0436a0d172402ea49989fb6d4fc0ead516bbaa04ade8ca0bff91c2f"
+  },
+  "id": "WZ2qLJY8kjSe3Nsv",
+  "tags": []
+}
